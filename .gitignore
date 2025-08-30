@@ -1,0 +1,61 @@
+# =========================
+# Python
+# =========================
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.egg
+*.egg-info/
+dist/
+build/
+.eggs/
+*.so
+*.dll
+*.dylib
+
+# Virtual environments
+.venv/
+env/
+venv/
+ENV/
+
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb
+
+# =========================
+# C / C++ / CMake
+# =========================
+*.o
+*.obj
+*.a
+*.lib
+*.out
+*.exe
+*.stackdump
+*.elf
+*.map
+
+# CMake build dirs
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+Makefile
+install_manifest.txt
+compile_commands.json
+
+# Build directories
+/build/
+/bin/
+/lib/
+/debug/
+/release/
+
+# =========================
+# STM32 / Embedded
+# =========================
+*.hex
+*.bin
+*.srec
+*.list

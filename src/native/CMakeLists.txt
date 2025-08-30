@@ -1,0 +1,5 @@
+cmake_minimum_required(VERSION 3.10)
+project(aoa_native)
+add_library(aoa_c STATIC c/aoa.c)
+add_library(aoa_c_shared SHARED c/aoa.c)
+add_executable(aoa_cpp_cli cpp/main_cpp_cli.cpp)
