@@ -27,8 +27,7 @@ def simulate_event(source_pos, sensors, fs_mic=48000, up_fs=1_000_000, sound_fil
 
     for sensor in sensors:
         sensor_pos = np.array(sensor["pos"])
-        mic_positions = np.array(sensor["mics"])
-
+        mic_positions = sensor_pos + np.array(sensor["mics"])
         delays = []
         for mic in mic_positions:
             dx = source_pos[0] - mic[0]
@@ -59,7 +58,6 @@ def simulate_event(source_pos, sensors, fs_mic=48000, up_fs=1_000_000, sound_fil
 
         # AoA estimation
         aoa_vec = estimate_aoa(signals_ds, fs_mic, mic_positions)
-
         results[sensor["name"]] = {
             "signals": signals_ds,
             "aoa": aoa_vec,

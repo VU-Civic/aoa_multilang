@@ -80,6 +80,4 @@ def estimate_aoa(signals, fs, mic_positions):
     u, _, _, _ = np.linalg.lstsq(A, b, rcond=None)
     u /= np.linalg.norm(u) + 1e-15
 
-    # Convert to angle
-    est_angle = np.arctan2(u[1], u[0])
-    return est_angle
+    return u
