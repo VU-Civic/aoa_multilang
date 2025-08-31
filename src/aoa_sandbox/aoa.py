@@ -28,8 +28,8 @@ def gcc_phat(sig, refsig, fs, max_tau=None, interp=1):
 
     cc = np.concatenate((cc[-max_shift:], cc[:max_shift+1]))
     shift = np.argmax(np.abs(cc)) - max_shift
-
-    return shift / float(interp * fs)
+    delay = shift / float(interp * fs)
+    return delay
 
 
 def estimate_aoa(signals, fs, mic_positions):

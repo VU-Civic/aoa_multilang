@@ -1,0 +1,170 @@
+# utils.py
+"""
+Utility functions for AoA sandbox:
+- audio I/O and normalization
+- upsampling to a high internal rate (resample_poly)
+- ADC sampling simulation (discrete sampling instants)
+- compute per-microphone delay samples (aligned to farthest mic)
+- assemble per-mic high-rate signals (same length, farthest-mic baseline)
+"""
+
+from __future__ import annotations
+import math
+from typing import Tuple, Sequence
+import numpy as np
+from scipy.signal import resample_poly
+import soundfile as sf
+
+
+def speed_of_sound(temperature_c: float | None = None) -> float:
+    """
+    Return speed of sound in m/s.
+    If temperature_c is None, return the conventional 343.0 m/s.
+    Otherwise use approximation v = 331.4 + 0.6 * T (valid near room temp).
+    """
+    if temperature_c is None:
+        return 343.0
+    return 331.4 + 0.6 * float(temperature_c)
+
+
+def load_audio_mono(path: str, normalize: bool = True) -> Tuple[np.ndarray, int]:
+    """
+    Load audio (file) and return mono float32 array in range [-1,1] and sample rate.
+    Uses soundfile (libsndfile).
+    """
+    data, fs = sf.read(path, dtype="float32")
+    if data.ndim > 1:
+        data = np.mean(data, axis=1)
+    data = data.astype("float32")
+    if normalize:
+        maxv = np.max(np.abs(data))
+        if maxv > 0:
+            data = data / maxv
+    return data, int(fs)
+
+
+def upsample_to(signal: np.ndarray, fs_in: int, fs_out: int) -> np.ndarray:
+    """
+    Upsample `signal` from fs_in to fs_out using polyphase resampling.
+    fs_in and fs_out must be positive ints. Returns float32 array.
+    Implementation uses gcd to get integer up/down factors for resample_poly.
+    """
+    fs_in = int(fs_in)
+    fs_out = int(fs_out)
+    if fs_in == fs_out:
+        return signal.astype(np.float32)
+
+    g = math.gcd(fs_out, fs_in)
+    up = fs_out // g
+    down = fs_in // g
+    # resample_poly accepts up/down as ints; it filters internally
+    out = resample_poly(signal, up, down)
+    return out.astype(np.float32)
+
+
+def adc_downsample(signal_up: np.ndarray, up_fs: int, adc_fs: int,
+                   start_offset_s: float = 0.0, n_samples: int | None = None) -> np.ndarray:
+    """
+    Simulate ADC sampling: pick samples from `signal_up` (sampled at up_fs Hz)
+    at instants t = start_offset_s + k / adc_fs for k=0..n_samples-1.
+    If n_samples is None, compute the maximal integer number of samples that fit inside
+    the length of signal_up (floor(len_up * adc_fs / up_fs)).
+    Uses rounding of indexes to nearest upsample index (zero-order hold analog snapshot).
+    """
+    up_fs = int(up_fs)
+    adc_fs = int(adc_fs)
+    L_up = len(signal_up)
+    # default n_samples preserving same time-length
+    if n_samples is None:
+        n_samples = int(math.floor(L_up * (adc_fs / up_fs)))
+        if n_samples < 1:
+            n_samples = 1
+
+    # compute sample indices in upsample grid
+    # index = round((start_offset + k / adc_fs) * up_fs)
+    # vectorized:
+    k = np.arange(n_samples, dtype=np.float64)
+    times = start_offset_s + k / float(adc_fs)
+    idx = np.rint(times * up_fs).astype(int)
+    # clip to valid range
+    idx = np.clip(idx, 0, L_up - 1)
+    return signal_up[idx].astype(np.float32)
+
+
+def compute_delay_samples_for_sensor(source_pos: Sequence[float],
+                                     sensor_pos: Sequence[float],
+                                     mic_positions: np.ndarray,
+                                     speed_c: float,
+                                     up_fs: int) -> np.ndarray:
+    """
+    Compute per-microphone integer sample offsets (non-negative) at upsample rate `up_fs`
+    relative to the farthest mic.
+
+    Parameters
+    ----------
+    source_pos : (3,) sequence
+        World coordinates of the acoustic source.
+    sensor_pos : (3,) sequence
+        World coordinate of the sensor node (array origin).
+    mic_positions : (M,3) numpy array
+        Microphone coordinates relative to sensor_pos.
+    speed_c : float
+        Speed of sound (m/s).
+    up_fs : int
+        High internal sampling rate in Hz.
+
+    Returns
+    -------
+    delay_samples : (M,) int numpy array
+        delay_samples[i] = number of upsample ticks that the i-th mic is **earlier**
+        than the farthest mic (i.e., how many samples to shift the baseline audio to form
+        the i-th mic signal). Values are >= 0.
+    """
+    src = np.asarray(source_pos, dtype=float)
+    sensor = np.asarray(sensor_pos, dtype=float)
+    mpos = np.asarray(mic_positions, dtype=float)
+    abs_pos = sensor[None, :] + mpos  # (M,3)
+    distances = np.linalg.norm(abs_pos - src[None, :], axis=1)
+    taus = distances / float(speed_c)
+    tau_max = np.max(taus)
+    deltas = tau_max - taus  # >= 0 for all mics (farthest mic delta=0)
+    delay_samples = np.rint(deltas * float(up_fs)).astype(int)
+    return delay_samples
+
+
+def assemble_mic_highrate_signals(audio_up: np.ndarray, delay_samples: np.ndarray) -> np.ndarray:
+    """
+    Produce per-microphone high-rate signals (aligned to the farthest mic baseline).
+    - audio_up: 1D array (length L)
+    - delay_samples: (M,) ints (>=0) that indicate how many samples to shift the slice start
+      for each mic: mic_signal = audio_up_padded[delay : delay + L]
+    Returns signals_up: array shape (M, L) dtype float32
+    """
+    audio_up = np.asarray(audio_up, dtype=np.float32)
+    L = len(audio_up)
+    delay_samples = np.asarray(delay_samples, dtype=int)
+    max_delay = int(np.max(delay_samples))
+    if max_delay < 0:
+        raise ValueError("delay_samples must be non-negative")
+
+    # pad end so that audio_up_padded[delay + L - 1] exists for all delays
+    if max_delay > 0:
+        pad = np.zeros(max_delay, dtype=audio_up.dtype)
+        audio_up_padded = np.concatenate([audio_up, pad])
+    else:
+        audio_up_padded = audio_up
+
+    M = len(delay_samples)
+    signals = np.zeros((M, L), dtype=np.float32)
+    for i, d in enumerate(delay_samples):
+        start = int(d)
+        signals[i, :] = audio_up_padded[start:start + L]
+    return signals
+
+
+def save_signals_npz(path: str, signals: np.ndarray, fs: int):
+    """
+    Save multichannel signals into a .npz file (signals, fs).
+    signals shape (M, N)
+    """
+    np.savez(path, signals=signals.astype(np.float32), fs=int(fs))

@@ -1,0 +1,22 @@
+[simulation]
+fs_mic = 48000
+up_fs = 1000000
+sound_file = "examples/gunshot1.wav"
+
+[source]
+pos = [2.0, 1.0, 0.0]
+
+[[sensors]]
+name = "Node1"
+pos = [0.0, 0.0, 0.0]
+mics = [[0.0, 0.0, 0.0], [0.1, 0.0, 0.0], [0.0, 0.1, 0.0]]
+
+[[sensors]]
+name = "Node2"
+pos = [3.0, 0.0, 0.0]
+mics = [[0.0, 0.0, 0.0], [0.1, 0.0, 0.0], [0.0, 0.1, 0.0]]
+
+[[sensors]]
+name = "Node3"
+pos = [0.0, 3.0, 0.0]
+mics = [[0.0, 0.0, 0.0], [0.1, 0.0, 0.0], [0.0, 0.1, 0.0]]

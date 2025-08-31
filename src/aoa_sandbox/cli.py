@@ -1,24 +1,33 @@
 import click
+import toml
 import numpy as np
-import soundfile as sf
-from aoa_sandbox.sim import simulate_event
+
+from .sim import simulate_event
+from .fusion import triangulate
 
 
 @click.group()
 def cli():
-    """AoA Sandbox CLI"""
     pass
 
 
 @cli.command()
-@click.argument("wavfile", type=click.Path(exists=True))
-@click.option("--sr", default=48000, help="Target microphone sample rate (Hz)")
-@click.option("--mic-array", default="square", help="Microphone array type (square, linear, etc.)")
-@click.option("--sound-x", default=1.0, help="Sound source X position (m)")
-@click.option("--sound-y", default=0.0, help="Sound source Y position (m)")
-def run(wavfile, sr, mic_array, sound_x, sound_y):
-    """Run AoA estimation from a WAV file"""
-    audio, fs = sf.read(wavfile)
-    print(f"Loaded {wavfile} with SR={fs}, {audio.shape[0]} samples")
-    est = simulate_event(audio, fs, sr, mic_array, (sound_x, sound_y))
-    click.echo(f"Estimated source position: {180 + np.degrees(est)}")
+@click.argument("config_file", type=click.Path(exists=True))
+def run(config_file):
+    config = toml.load(config_file)
+
+    source_pos = np.array(config["source"]["pos"])
+    sensors = config["sensors"]
+    fs_mic = config["simulation"]["fs_mic"]
+    up_fs = config["simulation"]["up_fs"]
+    sound_file = config["simulation"]["sound_file"]
+
+    results = simulate_event(source_pos, sensors, fs_mic, up_fs, sound_file)
+
+    aoas = [results[s]["aoa"] for s in results]  # type: ignore
+    positions = [results[s]["pos"] for s in results]  # type: ignore
+
+    est_pos = triangulate(aoas, positions)
+
+    click.echo(f"True source position: {source_pos}")
+    click.echo(f"Estimated position:   {est_pos}")

@@ -4,6 +4,7 @@ setup(
     version='0.1.0',
     packages=find_packages('src'),
     package_dir={'': 'src'},
-    install_requires=['numpy', 'scipy', 'click', 'soundfile', 'matplotlib'],
+    install_requires=['numpy', 'scipy', 'click',
+                      'soundfile', 'matplotlib', 'toml'],
     entry_points={'console_scripts': ['aoa-sim=aoa_sandbox.cli:cli']}
 )
