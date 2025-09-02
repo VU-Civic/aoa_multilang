@@ -168,3 +168,63 @@ def save_signals_npz(path: str, signals: np.ndarray, fs: int):
     signals shape (M, N)
     """
     np.savez(path, signals=signals.astype(np.float32), fs=int(fs))
+
+
+def quat_multiply(q1, q2):
+    w1, x1, y1, z1 = q1
+    w2, x2, y2, z2 = q2
+    return np.array([
+        w1*w2 - x1*x2 - y1*y2 - z1*z2,
+        w1*x2 + x1*w2 + y1*z2 - z1*y2,
+        w1*y2 - x1*z2 + y1*w2 + z1*x2,
+        w1*z2 + x1*y2 - y1*x2 + z1*w2
+    ])
+
+
+def quat_conjugate(q):
+    w, x, y, z = q
+    return np.array([w, -x, -y, -z])
+
+
+def normalize_quat(q):
+    """Return normalized quaternion (w,x,y,z)."""
+    q = np.asarray(q, dtype=float)
+    n = np.linalg.norm(q)
+    if n < 1e-12:
+        return np.array([1.0, 0.0, 0.0, 0.0])
+    return q / n
+
+
+def quat_to_rotmat(q):
+    """
+    Convert quaternion (w,x,y,z) to 3x3 rotation matrix.
+    Rotates a vector in local frame into global frame by R @ v_local.
+    """
+    q = normalize_quat(q)
+    w, x, y, z = q
+    # Precompute reused terms
+    xx = x * x
+    yy = y * y
+    zz = z * z
+    xy = x * y
+    xz = x * z
+    yz = y * z
+    wx = w * x
+    wy = w * y
+    wz = w * z
+
+    R = np.array([
+        [1.0 - 2.0*(yy + zz),    2.0*(xy - wz),        2.0*(xz + wy)],
+        [2.0*(xy + wz),          1.0 - 2.0*(xx + zz),  2.0*(yz - wx)],
+        [2.0*(xz - wy),          2.0*(yz + wx),        1.0 - 2.0*(xx + yy)]
+    ], dtype=float)
+    return R
+
+
+def quat_rotate(q, v):
+    """
+    Rotate 3-vector v using quaternion q (w,x,y,z).
+    Equivalent to R @ v where R = quat_to_rotmat(q).
+    """
+    R = quat_to_rotmat(q)
+    return R @ np.asarray(v, dtype=float)

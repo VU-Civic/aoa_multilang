@@ -34,50 +34,40 @@ def gcc_phat(sig, refsig, fs, max_tau=None, interp=1):
 
 def estimate_aoa(signals, fs, mic_positions):
     """
-    Estimate AoA using GCC-PHAT across all microphone pairs.
-
-    Parameters
-    ----------
-    signals : list of np.ndarray
-        List of microphone signals (all same length).
-    fs : int
-        Sampling rate.
-    mic_positions : np.ndarray
-        Nx2 array of mic coordinates (meters).
-
-    Returns
-    -------
-    est_angle : float
-        Estimated source angle [radians] relative to array x-axis.
+    Estimate AoA vector from microphone signals.
+    Args:
+        signals: list of time-domain signals (already aligned in length)
+        fs: sample rate
+        mic_positions: (N_mics, 3) array of mic positions in ECEF
+    Returns:
+        aoa_vec: unit vector in ECEF pointing toward source
     """
-    n_mics = len(signals)
-    tdoa_measurements = []
-    pair_positions = []
+    N = len(signals)
+    if N < 2:
+        raise ValueError("Need at least 2 microphones for AoA")
 
-    # --- 1. Extract all TDOAs ---
-    for i in range(n_mics):
-        for j in range(i+1, n_mics):
-            tau_ij = gcc_phat(signals[i], signals[j], fs)
-            tdoa_measurements.append(tau_ij)
-            pair_positions.append((i, j))
-    tdoa_measurements = np.array(tdoa_measurements)
+    # Compute TDOAs using GCC-PHAT between mic 0 and others
+    ref = signals[0]
+    tdoas = []
+    baselines = []
+    for i in range(1, N):
+        tau = gcc_phat(ref, signals[i], fs)
+        tdoas.append(tau)
+        baselines.append(mic_positions[i] - mic_positions[0])
 
-    # --- 2. Solve AoA with least squares ---
-    # For a plane wave assumption: tau_ij ≈ ( (ri - rj) · u ) / c
-    # where u = [cos θ, sin θ]
+    # Solve least-squares for direction vector
     A = []
     b = []
-    for tau, (i, j) in zip(tdoa_measurements, pair_positions):
-        ri = mic_positions[i]
-        rj = mic_positions[j]
-        diff = ri - rj
-        A.append(diff)
-        b.append(C * tau)
-    A = np.vstack(A)    # shape (M,2)
-    b = np.array(b)     # shape (M,)
+    c = 343.0  # speed of sound
+    for tau, baseline in zip(tdoas, baselines):
+        baseline = np.asarray(baseline)
+        # Equation: (baseline · aoa) = c * tau
+        A.append(baseline.reshape(1, -1))
+        b.append(c * tau)
+    A = np.vstack(A)
+    b = np.array(b)
 
-    # Least squares solution for u
-    u, _, _, _ = np.linalg.lstsq(A, b, rcond=None)
-    u /= np.linalg.norm(u) + 1e-15
-
-    return u
+    # Least squares solution for direction
+    aoa_vec, *_ = np.linalg.lstsq(A, b, rcond=None)
+    aoa_vec /= np.linalg.norm(aoa_vec)  # normalize
+    return aoa_vec
