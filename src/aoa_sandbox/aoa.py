@@ -70,4 +70,5 @@ def estimate_aoa(signals, fs, mic_positions):
     # Least squares solution for direction
     aoa_vec, *_ = np.linalg.lstsq(A, b, rcond=None)
     aoa_vec /= np.linalg.norm(aoa_vec)  # normalize
+
     return aoa_vec
