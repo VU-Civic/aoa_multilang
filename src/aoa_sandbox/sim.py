@@ -16,9 +16,9 @@ def simulate_event(source_pos, sensors, fs_mic=48000, up_fs=1_000_000, sound_fil
 
     sr, sig = wavfile.read(sound_file)
     if sig.ndim > 1:
-        sig = sig.mean(axis=1)
+        sig = sig.mean(axis=1)  # force mono
     sig = sig.astype(np.float32)
-    sig /= np.max(np.abs(sig))
+    sig /= np.max(np.abs(sig))  # normalized signal
 
     # Upsample input waveform
     sig_up = sps.resample_poly(sig, up_fs, sr)
@@ -31,15 +31,17 @@ def simulate_event(source_pos, sensors, fs_mic=48000, up_fs=1_000_000, sound_fil
         mic_local = sensor["mics"]
         mic_positions = np.array([sensor_pos + R @ m for m in mic_local])
 
-        # Compute delays for each mic
-        delays = []
-        for mic in mic_positions:
-            dist = np.linalg.norm(source_pos - mic)
-            delay_sec = dist / speed_of_sound()
-            delays.append(delay_sec)
-
+        dists = np.array([np.linalg.norm(source_pos - mic)
+                         for mic in mic_positions])
+        min_dist = np.min(dists)
+        toa = min_dist / speed_of_sound()
+        delays = (dists - min_dist) / speed_of_sound()
         max_delay = max(delays)
         delay_samples = [int(round((d - max_delay) * up_fs)) for d in delays]
+
+        tdoas = [delays[0]-d for d in delays]
+        print("True delays (s):", delays)
+        print("True TDOAs (s):", tdoas)
 
         # Apply delays
         signals = []
@@ -64,6 +66,8 @@ def simulate_event(source_pos, sensors, fs_mic=48000, up_fs=1_000_000, sound_fil
             "aoa": aoa_vec,
             "pos": sensor_pos,
             "mic_positions": mic_positions,
+            "toa": toa,
+            "toa_mic": mic_positions[np.argmin(dists)]
         }
 
     return results

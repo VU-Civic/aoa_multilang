@@ -2,6 +2,7 @@ import click
 import toml
 import numpy as np
 
+from aoa_sandbox.toa import estimate_position_from_toa
 from aoa_sandbox.utils import quat_to_rotmat
 
 from .sim import simulate_event
@@ -26,7 +27,9 @@ def run(config_file):
     up_fs = config["simulation"]["up_fs"]
     sound_file = config["simulation"]["sound_file"]
 
+    # Run the simulation
     results = simulate_event(source_pos, sensors, fs_mic, up_fs, sound_file)
+
     aoas = [results[s]["aoa"] for s in results]  # type: ignore
     positions = [results[s]["pos"] for s in results]  # type: ignore
 
@@ -70,7 +73,6 @@ def run(config_file):
     for pos, aoa in zip(positions, aoas):
         # Normalize AOAs for visualization
         aoa_vec = np.array(aoa)
-        aoa_vec = aoa_vec / np.linalg.norm(aoa_vec)
         ax.quiver(pos[0], pos[1], pos[2],
                   aoa_vec[0], aoa_vec[1], aoa_vec[2],
                   length=10, color='orange', arrow_length_ratio=0.05, label=None)
@@ -91,19 +93,34 @@ def run(config_file):
         R = quat_to_rotmat(sensor["quaternion"])
         mic_local = sensor["mics"]
         mic_positions = np.array([sensor_pos + R @ m for m in mic_local])
-        print(mic_positions)
         for mic_pos in mic_positions:
             mic_pos_arr = np.array(mic_pos)
             ax.scatter(mic_pos_arr[0], mic_pos_arr[1], mic_pos_arr[2],
                        c='black', marker='o', s=10, label=None)
 
-    ax.set_xlim(x_min, x_max)
-    ax.set_ylim(y_min, y_max)
-    ax.set_zlim(z_min, z_max)
+    # ax.set_xlim(x_min, x_max)
+    # ax.set_ylim(y_min, y_max)
+    # ax.set_zlim(z_min, z_max)
 
-    ax.legend()
     ax.set_xlabel('X')
     ax.set_ylabel('Y')
     ax.set_zlabel('Z')
     ax.set_title('Sensor Scenario (3D)')
+
+    sensor_positions = [res["toa_mic"] for res in results.values()]
+    toas = [res["toa"] for res in results.values()]
+    print("toas:", toas)
+    est_pos = estimate_position_from_toa(sensor_positions, toas)
+    click.echo(f"True source position: {source_pos}")
+    click.echo(f"Estimated position from ToA:   {est_pos}")
+
+    # Plot estimated position from ToA
+    est_pos_toa = np.array(est_pos)
+    ax.scatter(est_pos_toa[0],
+               est_pos_toa[1],
+               est_pos_toa[2],
+               c='magenta',
+               marker='^', s=120, label='Estimated Source (ToA)')
+
+    ax.legend()
     plt.show()
