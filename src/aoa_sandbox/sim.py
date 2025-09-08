@@ -40,8 +40,6 @@ def simulate_event(source_pos, sensors, fs_mic=48000, up_fs=1_000_000, sound_fil
         delay_samples = [int(round((d - max_delay) * up_fs)) for d in delays]
 
         tdoas = [delays[0]-d for d in delays]
-        print("True delays (s):", delays)
-        print("True TDOAs (s):", tdoas)
 
         # Apply delays
         signals = []

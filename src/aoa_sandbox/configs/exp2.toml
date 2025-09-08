@@ -1,7 +1,7 @@
 [simulation]
 fs_mic = 96000
 up_fs = 1000000
-sound_file = "examples/gunshot1.wav"
+sound_file = "examples/gunshot2.wav"
 
 [source]
 position = [6378137.0, 1.0, 20.0]
@@ -9,7 +9,7 @@ position = [6378137.0, 1.0, 20.0]
 [[sensor]]
 name = "SensorA"
 position = [6378137.0, 0.0, 0.0]
-quaternion = [0.707, 0.0, -0.707, 0.0]
+quaternion = [1.0, 0.0, 0.0, 0.0]
 mics = [
     [  0.05,  0.05, 0.00 ],
     [ -0.05,  0.05, 0.00 ],
@@ -19,8 +19,8 @@ mics = [
 
 [[sensor]]
 name = "SensorB"
-position = [6378147.0, 0.0, 0.0]
-quaternion = [0.707, 0.0, -0.707, 0.0]
+position = [6378139.0, 0.0, 0.0]
+quaternion = [0.0, 0.0, 0.0, 1.0]
 mics = [
     [  0.05,  0.05, 0.00 ],
     [ -0.05,  0.05, 0.00 ],
@@ -30,7 +30,7 @@ mics = [
 
 [[sensor]]
 name = "SensorC"
-position = [6378147.0, 10.0, 0.0]
+position = [6378139.0, 2.0, 0.0]
 quaternion = [0.707, 0.0, -0.707, 0.0]
 mics = [
     [  0.05,  0.05, 0.00 ],
@@ -41,7 +41,7 @@ mics = [
 
 [[sensor]]
 name = "SensorD"
-position = [6378137.0, 10.0, 0.0]
+position = [6378137.0, 2.0, 0.0]
 quaternion = [0.707, 0.0, -0.707, 0.0]
 mics = [
     [  0.05,  0.05, 0.00 ],
@@ -52,7 +52,7 @@ mics = [
 
 [[sensor]]
 name = "SensorE"
-position = [6378157.0, 5.0, 0.0]
+position = [6378141.0, 1.0, 2.0]
 quaternion = [0.707, 0.0, -0.707, 0.0]
 mics = [
     [  0.05,  0.05, 0.00 ],

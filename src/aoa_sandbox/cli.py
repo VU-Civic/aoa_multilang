@@ -109,7 +109,6 @@ def run(config_file):
 
     sensor_positions = [res["toa_mic"] for res in results.values()]
     toas = [res["toa"] for res in results.values()]
-    print("toas:", toas)
     est_pos = estimate_position_from_toa(sensor_positions, toas)
     click.echo(f"True source position: {source_pos}")
     click.echo(f"Estimated position from ToA:   {est_pos}")
