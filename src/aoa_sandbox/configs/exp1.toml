@@ -5,6 +5,7 @@ sound_file = "examples/gunshot1.wav"
 
 [source]
 position = [6378137.0, 1.0, 20.0]
+loudness = 1.0
 
 [[sensor]]
 name = "SensorA"

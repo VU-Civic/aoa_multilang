@@ -4,6 +4,7 @@ import numpy as np
 
 from aoa_sandbox.toa import estimate_position_from_toa
 from aoa_sandbox.utils import quat_to_rotmat
+from aoa_sandbox.visuals import plot_sensor_results
 
 from .sim import simulate_event
 from .fusion import triangulate
@@ -22,13 +23,15 @@ def run(config_file):
     config = toml.load(config_file)
 
     source_pos = np.array(config["source"]["position"])
+    source_loudness = config["source"]["loudness"]
     sensors = config["sensor"]
     fs_mic = config["simulation"]["fs_mic"]
     up_fs = config["simulation"]["up_fs"]
     sound_file = config["simulation"]["sound_file"]
 
     # Run the simulation
-    results = simulate_event(source_pos, sensors, fs_mic, up_fs, sound_file)
+    results = simulate_event(source_pos, sensors, fs_mic,
+                             up_fs, sound_file, source_loudness)
 
     aoas = [results[s]["aoa"] for s in results]  # type: ignore
     positions = [results[s]["pos"] for s in results]  # type: ignore
@@ -123,3 +126,6 @@ def run(config_file):
 
     ax.legend()
     plt.show()
+
+    plot_sensor_results(results, sensor_name=None,
+                        fs=fs_mic, max_samples=40000)
