@@ -20,8 +20,11 @@ The library supports 3D sensor placement, quaternions for orientation, SPL-based
 Clone the repository:
 
 git clone https://github.com/Gyoorey/aoa_multilang.git
+
 cd aoa_multilang
+
 run scripts/setup_ubuntu.sh with sudo
+
 pip install -e .
 
 
