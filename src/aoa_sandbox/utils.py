@@ -63,7 +63,7 @@ def upsample_to(signal: np.ndarray, fs_in: int, fs_out: int) -> np.ndarray:
 
 
 def adc_downsample(signal_up: np.ndarray, up_fs: int, adc_fs: int,
-                   start_offset_s: float = 0.0, n_samples: int | None = None) -> np.ndarray:
+                   start_offset_s: float = 0.0) -> np.ndarray:
     """
     Simulate ADC sampling: pick samples from `signal_up` (sampled at up_fs Hz)
     at instants t = start_offset_s + k / adc_fs for k=0..n_samples-1.
@@ -75,14 +75,11 @@ def adc_downsample(signal_up: np.ndarray, up_fs: int, adc_fs: int,
     adc_fs = int(adc_fs)
     L_up = len(signal_up)
     # default n_samples preserving same time-length
-    if n_samples is None:
-        n_samples = int(math.floor(L_up * (adc_fs / up_fs)))
-        if n_samples < 1:
-            n_samples = 1
 
-    # compute sample indices in upsample grid
-    # index = round((start_offset + k / adc_fs) * up_fs)
-    # vectorized:
+    n_samples = int(math.floor(L_up * (adc_fs / up_fs)))
+    if n_samples < 1:
+        n_samples = 1
+
     k = np.arange(n_samples, dtype=np.float64)
     times = start_offset_s + k / float(adc_fs)
     idx = np.rint(times * up_fs).astype(int)

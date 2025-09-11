@@ -1,11 +1,11 @@
 [simulation]
 fs_mic = 96000
 up_fs = 1000000
-sound_file = "examples/gunshot1.wav"
 
 [source]
-position = [6378137.0, 1.0, 20.0]
-loudness = 1.0
+position = [6378137.0, 1.0, 200.0]
+spl_db = 100.0
+sound_file = "examples/gunshot1.wav"
 
 [[sensor]]
 name = "SensorA"
@@ -17,6 +17,8 @@ mics = [
     [ -0.05, -0.05, 0.00 ],
     [  0.05, -0.05, 0.05 ]
 ]
+mic_sensitivity = 0.05   # V/Pa (-26 dBV/Pa)
+gain = 100.0             # linear (+20 dB)
 
 [[sensor]]
 name = "SensorB"
@@ -28,6 +30,8 @@ mics = [
     [ -0.05, -0.05, 0.00 ],
     [  0.05, -0.05, 0.05 ]
 ]
+mic_sensitivity = 0.05   # V/Pa (-26 dBV/Pa)
+gain = 100.0             # linear (+20 dB)
 
 [[sensor]]
 name = "SensorC"
@@ -39,6 +43,8 @@ mics = [
     [ -0.05, -0.05, 0.00 ],
     [  0.05, -0.05, 0.05 ]
 ]
+mic_sensitivity = 0.05   # V/Pa (-26 dBV/Pa)
+gain = 100.0             # linear (+20 dB)
 
 [[sensor]]
 name = "SensorD"
@@ -50,6 +56,8 @@ mics = [
     [ -0.05, -0.05, 0.00 ],
     [  0.05, -0.05, 0.05 ]
 ]
+mic_sensitivity = 0.05   # V/Pa (-26 dBV/Pa)
+gain = 100.0             # linear (+20 dB)
 
 [[sensor]]
 name = "SensorE"
@@ -61,3 +69,5 @@ mics = [
     [ -0.05, -0.05, 0.00 ],
     [  0.05, -0.05, 0.05 ]
 ]
+mic_sensitivity = 0.05   # V/Pa (-26 dBV/Pa)
+gain = 100.0             # linear (+20 dB)

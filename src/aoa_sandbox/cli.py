@@ -23,15 +23,15 @@ def run(config_file):
     config = toml.load(config_file)
 
     source_pos = np.array(config["source"]["position"])
-    source_loudness = config["source"]["loudness"]
+    source_spl_db = config["source"]["spl_db"]
     sensors = config["sensor"]
     fs_mic = config["simulation"]["fs_mic"]
     up_fs = config["simulation"]["up_fs"]
-    sound_file = config["simulation"]["sound_file"]
+    sound_file = config["source"]["sound_file"]
 
     # Run the simulation
     results = simulate_event(source_pos, sensors, fs_mic,
-                             up_fs, sound_file, source_loudness)
+                             up_fs, sound_file, source_spl_db)
 
     aoas = [results[s]["aoa"] for s in results]  # type: ignore
     positions = [results[s]["pos"] for s in results]  # type: ignore
@@ -127,5 +127,5 @@ def run(config_file):
     ax.legend()
     plt.show()
 
-    plot_sensor_results(results, sensor_name=None,
-                        fs=fs_mic, max_samples=40000)
+    # plot_sensor_results(results, sensor_name=None,
+    #                     fs=fs_mic, max_samples=40000)
