@@ -1,9 +1,10 @@
+from logging import config
 import numpy as np
 from scipy.io import wavfile
 import scipy.signal as sps
 
 from aoa_sandbox.propagation import apply_propagation
-from .utils import adc_downsample, quat_to_rotmat, speed_of_sound
+from .utils import adc_downsample, quat_to_rotmat, speed_of_sound, plot_aoa_and_signals
 from .aoa import estimate_aoa
 from .spl import spl_to_pressure
 
@@ -28,12 +29,88 @@ def apply_mic_chain(pressure_signal: np.ndarray,
     return v_signal
 
 
+def compute_aoa_over_frames(signals,
+                            fs,
+                            mic_positions,
+                            source_pos=None,
+                            sensor_pos=None,
+                            frame_length=0.015,
+                            aggregation="histogram"):
+    """
+    Compute AOA vectors for multiple time frames.
+
+    Args:
+        signals: list of ndarray, shape (n_sensors, n_samples)
+        fs: float
+            Sampling frequency [Hz].
+        mic_positions: ndarray, shape (n_sensors, 3)
+            Cartesian coordinates of microphones.
+        frame_length: float
+            Frame duration in seconds (default: 15 ms).
+        aggregation: str
+            Aggregation method for global AOA ("mean", "median").
+
+    Returns:
+        aoa_list: list of ndarray
+            List of AOA vectors, one per frame.
+        aoa_agg: ndarray
+            Aggregated AOA vector.
+    """
+    n_signals = len(signals)
+    if n_signals < 2:
+        raise ValueError(
+            "At least two signals are required for AOA estimation.")
+    signals = np.array(signals)
+    n_samples = signals.shape[1]
+    frame_size = int(frame_length * fs)
+    n_frames = n_samples // frame_size
+
+    aoa_list = []
+
+    for k in range(n_frames):
+        start = k * frame_size
+        end = start + frame_size
+        frame_signals = signals[:, start:end]
+
+        # --- Call your existing per-frame AOA estimation ---
+        aoa_vec = estimate_aoa(
+            frame_signals, fs, mic_positions, source_pos, sensor_pos)
+        aoa_list.append(aoa_vec)
+
+    # --- Aggregation ---
+    aoa_array = np.vstack(aoa_list)
+    if aggregation == "mean":
+        aoa_agg = np.mean(aoa_array, axis=0)
+    elif aggregation == "median":
+        aoa_agg = np.median(aoa_array, axis=0)
+    elif aggregation == "max":
+        aoa_agg = aoa_array[np.argmax(np.linalg.norm(aoa_array, axis=1))]
+    elif aggregation == "histogram":
+        # Histogram aggregation: for each dimension, pick the most frequent bin center
+        aoa_agg = np.zeros(aoa_array.shape[1])
+        for i in range(aoa_array.shape[1]):
+            hist, bin_edges = np.histogram(aoa_array[:, i], bins="auto")
+            max_bin_idx = np.argmax(hist)
+            if max_bin_idx < len(bin_edges) - 1:
+                aoa_agg[i] = 0.5 * (bin_edges[max_bin_idx] +
+                                    bin_edges[max_bin_idx + 1])
+            else:
+                # Fallback: use the last bin edge if somehow at the end
+                aoa_agg[i] = bin_edges[-1]
+    else:
+        raise ValueError(f"Unknown aggregation method: {aggregation}")
+
+    return aoa_list, aoa_agg
+
+
 def simulate_event(source_pos, sensors,
                    fs_mic=48000,
                    up_fs=1_000_000,
                    sound_file=None,
                    source_spl_db=100.0,
-                   noise_std=0.01):
+                   noise_std=0.01,
+                   window_length=0.02,
+                   **kwargs):
     """
     Simulate event for multiple sensors with mic arrays and quaternions.
     Loudness is defined in dB SPL at 1 m distance.
@@ -81,8 +158,7 @@ def simulate_event(source_pos, sensors,
                 sig_shifted = sig_up
             else:
                 start = -ds
-                sig_shifted = sig_up[start:] if start >= 0 else np.pad(
-                    sig_up, (-start, 0))
+                sig_shifted = np.pad(sig_up[start:], (0, start))
             sig_shifted = sig_shifted[:L]
             # Apply attenuation (1/r) + frequency-dependent loss
             sig_shifted = apply_propagation(sig_shifted, up_fs, di)
@@ -94,11 +170,28 @@ def simulate_event(source_pos, sensors,
         signals_adc = [apply_mic_chain(s, mic_sens, gain, noise_std)
                        for s in signals_ds]
         # Estimate AOA
-        aoa_vec = estimate_aoa(signals_adc, fs_mic, mic_positions)
+        aoa_list, aoa_agg = compute_aoa_over_frames(
+            signals=signals_adc,
+            fs=fs_mic,
+            mic_positions=mic_positions,
+            source_pos=source_pos,
+            sensor_pos=sensor_pos,
+            frame_length=window_length,
+            aggregation="median"
+        )
+
+        aoa_full_rec = estimate_aoa(
+            signals_adc, fs_mic, mic_positions, source_pos=source_pos)
+
+        # Optional: plot signals and AOA
+        if kwargs.get("plot_signals", False):
+            plot_aoa_and_signals(aoa_list, aoa_full_rec,
+                                 signals_adc, fs_mic, sensor["name"])
 
         results[sensor["name"]] = {
             "signals": signals_adc,
-            "aoa": aoa_vec,
+            "aoa": aoa_agg,
+            "aoa_full_rec": aoa_full_rec,
             "pos": sensor_pos,
             "mic_positions": mic_positions,
             "toa": toa,

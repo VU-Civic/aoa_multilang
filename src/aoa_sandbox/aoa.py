@@ -32,7 +32,7 @@ def gcc_phat(sig, refsig, fs, max_tau=None, interp=1):
     return delay
 
 
-def estimate_aoa(signals, fs, mic_positions):
+def estimate_aoa(signals, fs, mic_positions, source_pos=None, sensor_pos=None):
     """
     Estimate AoA vector from microphone signals.
     Args:
@@ -72,7 +72,7 @@ def estimate_aoa(signals, fs, mic_positions):
 
     # Check if microphones are approximately coplanar
     if is_coplanar(mic_positions):
-        return solve_coplanar_aoa(A, b, plane_normal)
+        return solve_coplanar_aoa(A, b, plane_normal, source_pos, sensor_pos)
     else:
         return solve_general_aoa(A, b)
 
@@ -128,7 +128,7 @@ def find_plane_normal(mic_positions, tolerance=1e-3):
     return None  # Not coplanar
 
 
-def solve_coplanar_aoa(A, b, plane_normal):
+def solve_coplanar_aoa(A, b, plane_normal, source_pos=None, sensor_pos=None):
     """
     Solve AoA for coplanar microphones.
     Returns two solutions differing in the plane-normal component.
@@ -183,6 +183,15 @@ def solve_coplanar_aoa(A, b, plane_normal):
         # Verify they're unit vectors
         aoa_1 = aoa_1 / np.linalg.norm(aoa_1)
         aoa_2 = aoa_2 / np.linalg.norm(aoa_2)
+
+    if source_pos is not None and sensor_pos is not None:
+        # Choose the solution that points toward the source
+        sensor_to_source = source_pos - sensor_pos
+        sensor_to_source = sensor_to_source / np.linalg.norm(sensor_to_source)
+        if np.dot(aoa_1, sensor_to_source) > np.dot(aoa_2, sensor_to_source):
+            return aoa_1
+        else:
+            return aoa_2
 
     return aoa_1
 

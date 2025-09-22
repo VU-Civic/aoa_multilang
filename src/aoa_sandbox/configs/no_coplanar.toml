@@ -3,7 +3,7 @@ fs_mic = 96000
 up_fs = 1000000
 
 [source]
-position = [6378137.0, 1.0, 10.0]
+position = [6378137.0, 1.0, 20.0]
 spl_db = 100.0
 sound_file = "examples/gunshot1.wav"
 

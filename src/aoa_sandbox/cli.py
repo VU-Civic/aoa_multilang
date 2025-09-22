@@ -19,7 +19,9 @@ def cli():
 
 @cli.command()
 @click.argument("config_file", type=click.Path(exists=True))
-def run(config_file):
+@click.option("--w", type=float, help="Time window length for AOA estimation", default=0.02)
+@click.option("--plot_signals", is_flag=True, help="Plot signals and AOA")
+def run(config_file, w, plot_signals):
     config = toml.load(config_file)
 
     source_pos = np.array(config["source"]["position"])
@@ -29,17 +31,26 @@ def run(config_file):
     up_fs = config["simulation"]["up_fs"]
     sound_file = config["source"]["sound_file"]
 
+    extra_kwargs = {}
+    if plot_signals:
+        extra_kwargs["plot_signals"] = True
+
     # Run the simulation
     results = simulate_event(source_pos, sensors, fs_mic,
-                             up_fs, sound_file, source_spl_db)
+                             up_fs, sound_file, source_spl_db,
+                             window_length=w, **extra_kwargs)
 
     aoas = [results[s]["aoa"] for s in results]  # type: ignore
+    aoa_full_recs = [results[s]["aoa_full_rec"]
+                     for s in results]  # type: ignore
     positions = [results[s]["pos"] for s in results]  # type: ignore
 
     est_pos = triangulate(aoas, positions)
+    est_pos_full = triangulate(aoa_full_recs, positions)
 
     click.echo(f"True source position: {source_pos}")
-    click.echo(f"Estimated position:   {est_pos}")
+    click.echo(f"Estimated position (frames):   {est_pos}")
+    click.echo(f"Estimated position (full rec): {est_pos_full}")
     import matplotlib.pyplot as plt
 
     positions = np.array(positions)
@@ -62,8 +73,13 @@ def run(config_file):
     ax.scatter(est_pos[0],
                est_pos[1],
                est_pos[2],
-               c='red',
+               c='orange',
                marker='x', s=100, label='Estimated Source')
+    ax.scatter(est_pos_full[0],
+               est_pos_full[1],
+               est_pos_full[2],
+               c='cyan',
+               marker='x', s=100, label='Estimated Source (full rec)')
 
     # Calculate min and max values for axis limits based on all points
     all_points = np.vstack(
@@ -73,12 +89,19 @@ def run(config_file):
     x_max, y_max, z_max = all_points.max(axis=0) + margin
 
     # # Draw AOAs as vectors from each sensor position
-    for pos, aoa in zip(positions, aoas):
-        # Normalize AOAs for visualization
+    for i, (pos, aoa) in enumerate(zip(positions, aoas)):
         aoa_vec = np.array(aoa)
+        label = "AOA - frames" if i == 0 else None
         ax.quiver(pos[0], pos[1], pos[2],
                   aoa_vec[0], aoa_vec[1], aoa_vec[2],
-                  length=10, color='orange', arrow_length_ratio=0.05, label=None)
+                  length=10, color='orange', arrow_length_ratio=0.05, label=label)
+    # Draw AOAs from full recordings as vectors from each sensor position
+    for i, (pos, aoa_full) in enumerate(zip(positions, aoa_full_recs)):
+        aoa_vec = np.array(aoa_full)
+        label = "AOA - full rec" if i == 0 else None
+        ax.quiver(pos[0], pos[1], pos[2],
+                  aoa_vec[0], aoa_vec[1], aoa_vec[2],
+                  length=10, color='cyan', arrow_length_ratio=0.05, label=label)
 
     # Draw sensor orientation arrows using quaternions
     for sensor in sensors:

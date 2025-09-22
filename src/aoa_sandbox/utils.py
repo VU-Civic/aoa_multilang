@@ -197,24 +197,26 @@ def quat_to_rotmat(q):
     Convert quaternion (w,x,y,z) to 3x3 rotation matrix.
     Rotates a vector in local frame into global frame by R @ v_local.
     """
-    q = normalize_quat(q)
     w, x, y, z = q
-    # Precompute reused terms
-    xx = x * x
-    yy = y * y
-    zz = z * z
-    xy = x * y
-    xz = x * z
-    yz = y * z
-    wx = w * x
-    wy = w * y
-    wz = w * z
+
+    # Normalize to ensure unit quaternion
+    n = w*w + x*x + y*y + z*z
+    if n < 1e-8:
+        return np.eye(3)
+    s = 2.0 / n
+
+    # Compute products
+    wx, wy, wz = w*x, w*y, w*z
+    xx, xy, xz = x*x, x*y, x*z
+    yy, yz = y*y, y*z
+    zz = z*z
 
     R = np.array([
-        [1.0 - 2.0*(yy + zz),    2.0*(xy - wz),        2.0*(xz + wy)],
-        [2.0*(xy + wz),          1.0 - 2.0*(xx + zz),  2.0*(yz - wx)],
-        [2.0*(xz - wy),          2.0*(yz + wx),        1.0 - 2.0*(xx + yy)]
-    ], dtype=float)
+        [1 - s*(yy + zz),     s*(xy - wz),       s*(xz + wy)],
+        [s*(xy + wz),         1 - s*(xx + zz),   s*(yz - wx)],
+        [s*(xz - wy),         s*(yz + wx),       1 - s*(xx + yy)]
+    ])
+
     return R
 
 
@@ -225,3 +227,37 @@ def quat_rotate(q, v):
     """
     R = quat_to_rotmat(q)
     return R @ np.asarray(v, dtype=float)
+
+
+def plot_aoa_and_signals(aoa_list, aoa_full_rec, signals_adc, fs_mic, sensor_name):
+    import matplotlib.pyplot as plt
+
+    aoa_array = np.vstack(aoa_list)
+    fig, axs = plt.subplots(2, 1, figsize=(10, 8))
+
+    # Plot AOA vectors over frames
+    for i in range(aoa_array.shape[1]):
+        axs[0].plot(aoa_array[:, i], label=f"Dim {i}")
+    # Plot aoa_full_rec as a constant line across all frames for each dimension
+    n_frames = aoa_array.shape[0]
+    for i in range(aoa_full_rec.shape[0]):
+        axs[0].hlines(aoa_full_rec[i], 0, n_frames - 1,
+                      colors=f"C{i}", linestyles="dashed", label=f"Full rec dim {i}")
+    axs[0].set_title(f"AOA vectors over frames for {sensor_name}")
+    axs[0].set_xlabel("Frame")
+    axs[0].set_ylabel("AOA vector components")
+    axs[0].legend()
+    axs[0].grid(True)
+
+    # Plot ADC signals for each mic
+    for i, s in enumerate(signals_adc):
+        t = np.arange(len(s)) / fs_mic
+        axs[1].plot(t, s, label=f"Mic {i}")
+    axs[1].set_title(f"ADC Signals for {sensor_name}")
+    axs[1].set_xlabel("Sample")
+    axs[1].set_ylabel("Voltage [V]")
+    axs[1].legend()
+    axs[1].grid(True)
+
+    plt.tight_layout()
+    plt.show()
