@@ -183,10 +183,13 @@ def simulate_event(source_pos, sensors,
         aoa_full_rec = estimate_aoa(
             signals_adc, fs_mic, mic_positions, source_pos=source_pos)
 
-        # Optional: plot signals and AOA
         if kwargs.get("plot_signals", False):
-            plot_aoa_and_signals(aoa_list, aoa_full_rec,
-                                 signals_adc, fs_mic, sensor["name"])
+            plot_aoa_and_signals(aoa_list,
+                                 aoa_full_rec,
+                                 signals_adc,
+                                 fs_mic,
+                                 sensor["name"],
+                                 window_length)
 
         results[sensor["name"]] = {
             "signals": signals_adc,

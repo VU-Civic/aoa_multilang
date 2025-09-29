@@ -197,7 +197,9 @@ def solve_coplanar_aoa(A, b, plane_normal, source_pos=None, sensor_pos=None):
 
 
 def solve_general_aoa(A, b):
-    """Solve AoA for non-coplanar microphones."""
+    """Solve AoA for non-coplanar microphones with safeguards against NaNs."""
+    import numpy as np
+    from scipy.optimize import minimize
 
     def residual_func(aoa_vec):
         return A @ aoa_vec - b
@@ -205,22 +207,25 @@ def solve_general_aoa(A, b):
     def constraint_func(aoa_vec):
         return np.linalg.norm(aoa_vec)**2 - 1
 
-    # Initial guess from unconstrained solution
+    # Initial guess
     aoa_init, *_ = np.linalg.lstsq(A, b, rcond=None)
-    aoa_init = aoa_init / np.linalg.norm(aoa_init)
-
-    from scipy.optimize import minimize
+    norm = np.linalg.norm(aoa_init)
+    if norm < 1e-12 or not np.all(np.isfinite(aoa_init)):
+        aoa_init = np.array([1.0, 0.0, 0.0])  # fallback unit vector
+    else:
+        aoa_init /= norm
 
     result = minimize(
         lambda aoa: np.sum(residual_func(aoa)**2),
         aoa_init,
         constraints={'type': 'eq', 'fun': constraint_func},
-        method='SLSQP'
+        method='SLSQP',
+        options={'maxiter': 100, 'ftol': 1e-9}
     )
 
-    if result.success:
-        aoa_vec = result.x / np.linalg.norm(result.x)  # ensure normalization
+    if result.success and np.all(np.isfinite(result.x)):
+        aoa_vec = result.x
+        aoa_vec /= max(np.linalg.norm(aoa_vec), 1e-12)
         return aoa_vec
     else:
-        # Fallback
         return aoa_init

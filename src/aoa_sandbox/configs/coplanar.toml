@@ -4,7 +4,7 @@ up_fs = 1000000
 
 [source]
 position = [6378137.0, 1.0, 10.0]
-spl_db = 80.0
+spl_db = 70.0
 sound_file = "examples/gunshot2.wav"
 
 

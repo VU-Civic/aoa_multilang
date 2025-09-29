@@ -2,11 +2,12 @@ import click
 import toml
 import numpy as np
 
+from aoa_sandbox.aoa import estimate_aoa
 from aoa_sandbox.toa import estimate_position_from_toa
 from aoa_sandbox.utils import quat_to_rotmat
 from aoa_sandbox.visuals import plot_sensor_results
 
-from .sim import simulate_event
+from .sim import compute_aoa_over_frames, simulate_event
 from .fusion import triangulate
 from mpl_toolkits.mplot3d import Axes3D
 from scipy.spatial.transform import Rotation as R
@@ -152,3 +153,58 @@ def run(config_file, w, plot_signals):
 
     # plot_sensor_results(results, sensor_name=None,
     #                     fs=fs_mic, max_samples=40000)
+
+
+@cli.command()
+@click.argument("config_file", type=click.Path(exists=True))
+@click.option("--w", type=float, help="Time window length for AOA estimation", default=0.02)
+@click.option("--plot_signals", is_flag=True, help="Plot signals and AOA")
+@click.option("--wav_file", type=click.Path(exists=True), required=True, help="Input wave file path")
+@click.option("--start", type=float, default=0.0, help="Start time (seconds) of the audio section to process")
+@click.option("--length", type=float, default=None, help="Length (seconds) of the audio section to process")
+def aoa(config_file, w, plot_signals, wav_file, start, length):
+    from scipy.io import wavfile
+    from .utils import plot_aoa_and_signals
+    # Load config
+    cfg = toml.load(config_file)
+    mic_positions = np.array(cfg["microphones"]["positions"], dtype=float)
+
+    # Load 4-channel WAV
+    sr, sig = wavfile.read(wav_file)
+    if sig.ndim != 2 or sig.shape[1] != 4:  # type: ignore
+        raise ValueError("Expected a 4-channel WAV file")
+    sig = sig.astype(np.float32) / 2**14
+    start_sample = int(start * sr)
+    if length is not None:
+        end_sample = start_sample + int(length * sr)
+        sig = sig[start_sample:end_sample, :]  # type: ignore
+    else:
+        sig = sig[start_sample:, :]  # type: ignore
+    signals = [sig[:, i] for i in range(4)]  # type: ignore
+
+    # Run AoA estimation
+    aoa_vectors, aoa_agg = compute_aoa_over_frames(
+        signals=signals,
+        fs=sr,
+        mic_positions=mic_positions,
+        source_pos=None,    # Unknown
+        sensor_pos=None,    # Unknown
+        frame_length=w,
+        aggregation="median"
+    )
+
+    aoa_full_rec = estimate_aoa(
+        signals,
+        sr,
+        mic_positions,
+        source_pos=None,
+        sensor_pos=None
+    )
+
+    if plot_signals:
+        plot_aoa_and_signals(aoa_list=aoa_vectors,
+                             aoa_full_rec=aoa_full_rec,
+                             signals_adc=signals,
+                             fs_mic=sr,
+                             sensor_name="Test Sensor",
+                             frame_length=w)

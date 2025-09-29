@@ -229,32 +229,73 @@ def quat_rotate(q, v):
     return R @ np.asarray(v, dtype=float)
 
 
-def plot_aoa_and_signals(aoa_list, aoa_full_rec, signals_adc, fs_mic, sensor_name):
+def plot_aoa_and_signals(aoa_list,
+                         aoa_full_rec,
+                         signals_adc,
+                         fs_mic,
+                         sensor_name,
+                         frame_length):
+    import numpy as np
     import matplotlib.pyplot as plt
 
-    aoa_array = np.vstack(aoa_list)
-    fig, axs = plt.subplots(2, 1, figsize=(10, 8))
+    print("=== DEBUG INFO: plot_aoa_and_signals ===")
+    print(f"type(aoa_list)={type(aoa_list)}, len(aoa_list)={len(aoa_list)}")
+    if len(aoa_list) > 0:
+        print(
+            f"type(aoa_list[0])={type(aoa_list[0])}, shape={np.shape(aoa_list[0])}")
+    print(f"type(aoa_full_rec)={type(aoa_full_rec)}, len={len(aoa_full_rec)}")
+    print(
+        f"type(signals_adc)={type(signals_adc)}, shape={np.shape(signals_adc)}")
+    print(f"fs_mic={fs_mic}, type={type(fs_mic)}")
+    print(f"frame_length={frame_length}, type={type(frame_length)}")
+    print("========================================")
 
-    # Plot AOA vectors over frames
-    for i in range(aoa_array.shape[1]):
-        axs[0].plot(aoa_array[:, i], label=f"Dim {i}")
-    # Plot aoa_full_rec as a constant line across all frames for each dimension
-    n_frames = aoa_array.shape[0]
-    for i in range(aoa_full_rec.shape[0]):
-        axs[0].hlines(aoa_full_rec[i], 0, n_frames - 1,
-                      colors=f"C{i}", linestyles="dashed", label=f"Full rec dim {i}")
-    axs[0].set_title(f"AOA vectors over frames for {sensor_name}")
-    axs[0].set_xlabel("Frame")
+    aoa_array = np.vstack(aoa_list)  # shape (n_frames, n_dims)
+    n_frames = len(aoa_list)
+    n_dims = int(aoa_array.shape[1])
+
+    # Convert frame_length [seconds] -> samples
+    frame_length_samples = int(round(frame_length * fs_mic))
+    total_length = n_frames * frame_length_samples
+
+    print(
+        f"frame_length={frame_length}s → frame_length_samples={frame_length_samples}, total_length={total_length}")
+
+    # Create aoa_signal: shape (n_dims, total_length)
+    aoa_signal = np.zeros((n_dims, total_length), dtype=np.float32)
+    for i in range(n_frames):
+        aoa_signal[:, i * frame_length_samples:(i + 1)
+                   * frame_length_samples] = aoa_array[i][:, None]
+
+    # Truncate signals_adc to total_length
+    signals_adc = np.asarray(signals_adc)
+    signals_adc_trunc = signals_adc[:, :total_length]
+
+    t = np.arange(total_length) / fs_mic
+
+    fig, axs = plt.subplots(2, 1, figsize=(12, 8), sharex=True)
+    print(f"t.shape={t.shape}, t[0:5]={t[0:5]}")
+
+    for i in range(n_dims):
+        print(f"Plotting AOA dim {i}")
+        axs[0].plot(t, aoa_signal[i], label=f"AOA dim {i}")
+        if len(aoa_full_rec) > i:
+            axs[0].hlines(aoa_full_rec[i], t[0], t[-1],
+                          colors=f"C{i}", linestyles="dashed", label=f"Full rec dim {i}")
+        else:
+            print(f"⚠️ Warning: aoa_full_rec has no entry for dim {i}")
+
+    axs[0].set_title(f"AOA signal over time for {sensor_name}")
     axs[0].set_ylabel("AOA vector components")
     axs[0].legend()
     axs[0].grid(True)
 
     # Plot ADC signals for each mic
-    for i, s in enumerate(signals_adc):
-        t = np.arange(len(s)) / fs_mic
+    for i, s in enumerate(signals_adc_trunc):
+        print(f"Plotting Mic {i}, signal length={len(s)}")
         axs[1].plot(t, s, label=f"Mic {i}")
     axs[1].set_title(f"ADC Signals for {sensor_name}")
-    axs[1].set_xlabel("Sample")
+    axs[1].set_xlabel("Time [s]")
     axs[1].set_ylabel("Voltage [V]")
     axs[1].legend()
     axs[1].grid(True)
