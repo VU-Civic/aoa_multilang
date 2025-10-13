@@ -208,3 +208,111 @@ def aoa(config_file, w, plot_signals, wav_file, start, length):
                              fs_mic=sr,
                              sensor_name="Test Sensor",
                              frame_length=w)
+
+
+@cli.command()
+@click.option("--process_only", is_flag=True, help="Process only, do not plot")
+@click.option("--wav_file", type=click.Path(exists=True), required=True, help="Input wave file path")
+@click.option("--start", type=float, default=0.0, help="Start time (seconds) of the audio section to process")
+@click.option("--length", type=float, default=None, help="Length (seconds) of the audio section to process")
+@click.option("--output_wav", type=click.Path(), help="Output WAV file path")
+def onset_detection(wav_file, start, length, process_only, output_wav):
+    import numpy as np
+    import librosa
+    import soundfile as sf
+    import matplotlib.pyplot as plt
+
+    from aoa_sandbox.onset import superflux_general, stretch_away
+
+    sr = 96000
+    win_length = int(0.025 * sr)   # 2400 samples
+    hop_length = int(0.010 * sr)   # 960 samples
+    n_fft = 4096                   # power-of-two >= win_length for efficiency
+    n_mels = 64                   # typical mel filterbank size
+
+    chunk_size = sr * 1  # 10 seconds of audio per chunk
+
+    if output_wav:
+        out_sf = sf.SoundFile(output_wav, mode='w',
+                              samplerate=sr, channels=2, subtype='FLOAT')
+    else:
+        out_sf = None
+
+    with sf.SoundFile(wav_file, 'r') as f:
+        # Calculate start and end frames
+        start_frame = int(start * sr)
+        if length is not None:
+            end_frame = start_frame + int(length * sr)
+        else:
+            end_frame = f.frames
+
+        f.seek(start_frame)
+        frames_to_read = end_frame - start_frame
+        print(
+            f"Will process {frames_to_read} frames\n_______________________________")
+
+        while frames_to_read > 0:
+            read_frames = min(chunk_size, frames_to_read)
+            data = f.read(frames=read_frames, dtype='float32')
+            if len(data) == 0:
+                break
+
+            frames_to_read -= len(data)
+            print("Frames left: ", frames_to_read)
+
+            # If stereo, convert to mono
+            if data.ndim > 1:
+                data = data[:, 0]
+
+            # Compute mel spectrogram
+            mel_spec = librosa.feature.melspectrogram(
+                y=data,
+                sr=sr,
+                n_fft=n_fft,
+                hop_length=hop_length,
+                win_length=win_length,
+                n_mels=n_mels,
+                power=2.0
+            )
+            mel_spec = librosa.power_to_db(mel_spec, ref=0.001)
+
+            env_mel, t_mel, _ = superflux_general(
+                mel_spec, sr=sr, hop_length=hop_length, lag=1, max_size=5)
+            env_mel = stretch_away(env_mel, t=0.5, alpha=2.0)
+
+            if not process_only:
+                plt.figure(figsize=(12, 4))
+                t_signal = np.arange(len(data)) / sr + \
+                    (f.tell() - len(data)) / sr
+                plt.plot(t_signal, data,
+                         label="Original Signal", alpha=0.7)
+                plt.plot(t_mel + t_signal[0], env_mel, label="SuperFlux (Mel)",
+                         linewidth=2, alpha=0.8)
+                plt.xlabel("Time (s)")
+                plt.ylabel("Amplitude / Onset Strength")
+                plt.title("Original Signal and SuperFlux Onset Envelope")
+                plt.ylim(-1.1, 1.1)
+                plt.legend()
+                plt.tight_layout()
+                plt.show()
+            else:
+                import scipy.signal
+
+                # Upsample envelope to match original signal length using rectangular (step) repetition
+                repeats = int(np.ceil(len(data) / len(env_mel)))
+                env_mel_upsampled = np.repeat(env_mel, repeats)[:len(data)]
+
+                # Stack original and envelope as two channels
+                output = np.stack([data, env_mel_upsampled], axis=-1)
+
+                # Write to output file
+                if out_sf is not None:
+                    out_sf.write(output)
+
+            try:
+                pass  # All processing is above
+            except KeyboardInterrupt:
+                print("Interrupted by user. Exiting.")
+                if out_sf is not None:
+                    out_sf.close()
+                break

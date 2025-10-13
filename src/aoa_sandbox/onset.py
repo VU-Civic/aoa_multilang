@@ -36,10 +36,14 @@ def superflux_from_log_spectrogram(logS, lag=1, max_size=3, method="loop"):
     diff = np.maximum(0.0, logS_max[:, lag:] - logS_max[:, :-lag])
     onset = np.sum(diff, axis=0)
     onset = np.concatenate((np.zeros(lag, dtype=onset.dtype), onset))
-
+    onset = np.abs(onset)
     m = np.max(onset)
-    if m > 0:
-        onset = onset / (m + 1e-12)
+    onset = onset / 1e3
+    onset = np.clip(onset, 0.0, 1.0)
+    # if m > 0:
+    #     # onset = onset / (m + 1e-12)
+    #     # print(m)
+    #     onset = onset / 1e3
     return onset
 
 
@@ -72,6 +76,13 @@ def superflux_mel(y, sr=22050, n_fft=1024, hop_length=512, n_mels=80, lag=1, max
     times = librosa.frames_to_time(
         np.arange(len(onset_env)), sr=sr, hop_length=hop_length)
     return onset_env, times, logS
+
+
+def superflux_general(S, sr=96000, hop_length=512, lag=1, max_size=3):
+    onset_env = superflux_from_log_spectrogram(S, lag=lag, max_size=max_size)
+    times = librosa.frames_to_time(
+        np.arange(len(onset_env)), sr=sr, hop_length=hop_length)
+    return onset_env, times, S
 
 
 def stretch_away(x, t=0.5, alpha=2.0):
